@@ -131,6 +131,7 @@ static void debug_user_sig_handler(void *Cookie) {
 
 /// dbgs - Return a circular-buffered debug stream.
 raw_ostream &llvm::dbgs() {
+  return my_dbgs();
   // Do one-time initialization in a thread-safe way.
   static struct dbgstream {
     circular_raw_ostream strm;

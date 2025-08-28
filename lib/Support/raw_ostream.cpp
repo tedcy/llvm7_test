@@ -63,7 +63,52 @@
 #include "Windows/WindowsSupport.h"
 #endif
 
+#include <functional>
+#include <string>
+
 using namespace llvm;
+
+static std::function<void(std::string const&)> g_debug;
+
+class debuger_stream : public llvm::raw_ostream
+{
+public:
+    explicit debuger_stream(std::string leader)
+        : raw_ostream(true), leader_(leader)
+    {}
+
+    ~debuger_stream()
+    {
+        flush();
+    }
+
+    void write_impl(const char *Ptr, size_t Size)
+    {
+        if (!g_debug)
+            return ;
+
+        for (size_t i = 0; i < Size; ++i) {
+            if (Ptr[i] == '\n') {
+                flush();
+                continue;
+            }
+
+            buffer_.push_back(Ptr[i]);
+        }
+    }
+
+    uint64_t current_pos() const override { return 0; }
+
+    void flush()
+    {
+        if (g_debug && !buffer_.empty())
+            g_debug(leader_ + buffer_);
+        buffer_.clear();
+    }
+
+    std::string leader_;
+    std::string buffer_;
+};
 
 raw_ostream::~raw_ostream() {
   // raw_ostream's subclasses should take care to flush the buffer
@@ -789,10 +834,35 @@ raw_ostream &llvm::errs() {
   return S;
 }
 
+void llvm::llvm_register_debuger_printer(std::function<void(std::string const&)> const& fn)
+{
+    g_debug = fn;
+
+    g_debug("llvm_register_debuger_printer set ok!");
+}
+
+raw_ostream &llvm::my_dbgs() {
+  static debuger_stream S("dbg|");
+  return S;
+}
+
 /// nulls() - This returns a reference to a raw_ostream which discards output.
 raw_ostream &llvm::nulls() {
   static raw_null_ostream S;
   return S;
+}
+
+std::string& llvm::debugger_tab() {
+    static std::string tab;
+    return tab;
+}
+
+void llvm::debugger_cost(std::string const& x)
+{
+    static thread_local auto last = std::chrono::high_resolution_clock::now();
+    auto now = std::chrono::high_resolution_clock::now();
+    my_dbgs() << debugger_tab() << x << "|cost:" << std::chrono::duration_cast<std::chrono::microseconds>(now - last).count() << " us\n";
+    last = now;
 }
 
 //===----------------------------------------------------------------------===//

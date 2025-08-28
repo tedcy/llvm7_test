@@ -29,6 +29,8 @@
 #ifndef LLVM_SUPPORT_DEBUG_H
 #define LLVM_SUPPORT_DEBUG_H
 
+#include "llvm/Support/raw_ostream.h"
+
 namespace llvm {
 
 class raw_ostream;
@@ -117,6 +119,7 @@ raw_ostream &dbgs();
 // LLVM_DEBUG(dbgs() << "Bitset contains: " << Bitset << "\n");
 //
 #define LLVM_DEBUG(X) DEBUG_WITH_TYPE(DEBUG_TYPE, X)
+#define MY_DEBUG(X) do { X; } while (false)
 
 } // end namespace llvm
 

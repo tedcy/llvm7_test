@@ -214,7 +214,7 @@ void ExecutionEngine::addGlobalMapping(StringRef Name, uint64_t Addr) {
 
   assert(!Name.empty() && "Empty GlobalMapping symbol name!");
 
-  LLVM_DEBUG(dbgs() << "JIT: Map \'" << Name << "\' to [" << Addr << "]\n";);
+  LLVM_DEBUG(dbgs() << "JIT: Map \'" << Name << "\' to [" << format("0x%x", Addr) << "]\n";);
   uint64_t &CurVal = EEState.getGlobalAddressMap()[Name];
   assert((!CurVal || !Addr) && "GlobalMapping already established!");
   CurVal = Addr;

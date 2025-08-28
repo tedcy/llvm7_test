@@ -1116,8 +1116,14 @@ RuntimeDyldELF::processRelocationRef(
     else
       return TargetNameOrErr.takeError();
   }
-  LLVM_DEBUG(dbgs() << "\t\tRelType: " << RelType << " Addend: " << Addend
-                    << " TargetName: " << TargetName << "\n");
+  LLVM_DEBUG(dbgs() << "\tstart processRelocationRef for RelType: " << RelType
+                    << " Addend: " << to_string(Addend)
+                    << " TargetName: " << TargetName.str() << '\n');
+  debugger_tab() = "\t\t";
+  std::shared_ptr<int> raii(nullptr, [](int *) {
+    debugger_tab() = "";
+    LLVM_DEBUG(dbgs() << "\tend processRelocationRef" << '\n');
+  });
   RelocationValueRef Value;
   // First search for the symbol in the local symbol table
   SymbolRef::Type SymType = SymbolRef::ST_Unknown;
@@ -1191,7 +1197,9 @@ RuntimeDyldELF::processRelocationRef(
   uint64_t Offset = RelI->getOffset();
 
   LLVM_DEBUG(dbgs() << "\t\tSectionID: " << SectionID << " Offset: " << Offset
-                    << "\n");
+                    << " Target SectionID: " << Value.SectionID 
+                    << " Offset: " << Value.Offset 
+                    << " Addend: " << Value.Addend << "\n");
   if ((Arch == Triple::aarch64 || Arch == Triple::aarch64_be)) {
     if (RelType == ELF::R_AARCH64_CALL26 || RelType == ELF::R_AARCH64_JUMP26) {
       resolveAArch64Branch(SectionID, Value, RelI, Stubs);

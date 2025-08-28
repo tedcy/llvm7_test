@@ -468,6 +468,26 @@ raw_ostream &errs();
 /// This returns a reference to a raw_ostream which simply discards output.
 raw_ostream &nulls();
 
+raw_ostream &my_dbgs();
+
+std::string& debugger_tab();
+
+void debugger_cost(std::string const& x);
+
+void llvm_register_debuger_printer(std::function<void(std::string const&)> const& fn);
+
+class CostScoped
+{
+public:
+    explicit CostScoped(std::string const& x) : x_(x) {
+        debugger_cost("start " + x_);
+    }
+    ~CostScoped() {
+        debugger_cost("end " + x_);
+    }
+    std::string x_;
+};
+
 //===----------------------------------------------------------------------===//
 // Output Stream Adaptors
 //===----------------------------------------------------------------------===//

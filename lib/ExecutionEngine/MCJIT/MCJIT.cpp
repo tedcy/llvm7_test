@@ -25,8 +25,34 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/MutexGuard.h"
+#include <map>
+#include <list>
 
 using namespace llvm;
+
+enum {
+    ev_start_finalizeObject,
+    ev_start_generateCodeForModule,
+    ev_start_finalizeLoadedModules,
+    ev_end_finalizeObject,
+    ev_end_generateCodeForModule,
+    ev_end_finalizeLoadedModules,
+    ev_start_emitObject,
+    ev_end_emitObject,
+    ev_start_relocations,
+    ev_end_relocations,
+    ev_start_registerEHFrames,
+    ev_end_registerEHFrames,
+    ev_start_createObjectFile,
+    ev_end_createObjectFile,
+    ev_start_loadObject,
+    ev_end_loadObject,
+    ev_start_storageBufferAndObjects,
+    ev_end_storageBufferAndObjects,
+    ev_notifyObjectEmitted,
+};
+
+#define call_debugger_cost(x) debugger_cost(#x)
 
 namespace {
 
@@ -205,14 +231,18 @@ void MCJIT::generateCodeForModule(Module *M) {
 
   // If the cache did not contain a suitable object, compile the object
   if (!ObjectToLoad) {
+    call_debugger_cost(ev_start_emitObject);
     ObjectToLoad = emitObject(M);
+    call_debugger_cost(ev_end_emitObject);
     assert(ObjectToLoad && "Compilation did not produce an object.");
   }
 
   // Load the object into the dynamic linker.
   // MCJIT now owns the ObjectImage pointer (via its LoadedObjects list).
+  call_debugger_cost(ev_start_createObjectFile);
   Expected<std::unique_ptr<object::ObjectFile>> LoadedObject =
     object::ObjectFile::createObjectFile(ObjectToLoad->getMemBufferRef());
+  call_debugger_cost(ev_end_createObjectFile);
   if (!LoadedObject) {
     std::string Buf;
     raw_string_ostream OS(Buf);
@@ -220,16 +250,21 @@ void MCJIT::generateCodeForModule(Module *M) {
     OS.flush();
     report_fatal_error(Buf);
   }
+
+  call_debugger_cost(ev_start_loadObject);
   std::unique_ptr<RuntimeDyld::LoadedObjectInfo> L =
     Dyld.loadObject(*LoadedObject.get());
+  call_debugger_cost(ev_end_loadObject);
 
   if (Dyld.hasError())
     report_fatal_error(Dyld.getErrorString());
 
   NotifyObjectEmitted(*LoadedObject.get(), *L);
 
+  call_debugger_cost(ev_start_storageBufferAndObjects);
   Buffers.push_back(std::move(ObjectToLoad));
   LoadedObjects.push_back(std::move(*LoadedObject));
+  call_debugger_cost(ev_end_storageBufferAndObjects);
 
   OwnedModules.markModuleAsLoaded(M);
 }
@@ -238,12 +273,16 @@ void MCJIT::finalizeLoadedModules() {
   MutexGuard locked(lock);
 
   // Resolve any outstanding relocations.
+  call_debugger_cost(ev_start_relocations);
   Dyld.resolveRelocations();
+  call_debugger_cost(ev_end_relocations);
 
   OwnedModules.markAllLoadedModulesAsFinalized();
 
   // Register EH frame data for any module we own which has been loaded
+  call_debugger_cost(ev_start_registerEHFrames);
   Dyld.registerEHFrames();
+  call_debugger_cost(ev_end_registerEHFrames);
 
   // Set page permissions.
   MemMgr->finalizeMemory();
@@ -252,6 +291,7 @@ void MCJIT::finalizeLoadedModules() {
 // FIXME: Rename this.
 void MCJIT::finalizeObject() {
   MutexGuard locked(lock);
+  call_debugger_cost(ev_start_finalizeObject);
 
   // Generate code for module is going to move objects out of the 'added' list,
   // so we need to copy that out before using it:
@@ -259,10 +299,17 @@ void MCJIT::finalizeObject() {
   for (auto M : OwnedModules.added())
     ModsToAdd.push_back(M);
 
-  for (auto M : ModsToAdd)
+  for (auto M : ModsToAdd) {
+    call_debugger_cost(ev_start_generateCodeForModule);
     generateCodeForModule(M);
+    call_debugger_cost(ev_end_generateCodeForModule);
+  }
 
+  call_debugger_cost(ev_start_finalizeLoadedModules);
   finalizeLoadedModules();
+  call_debugger_cost(ev_end_finalizeLoadedModules);
+
+  call_debugger_cost(ev_end_finalizeObject);
 }
 
 void MCJIT::finalizeModule(Module *M) {
@@ -335,8 +382,10 @@ JITSymbol MCJIT::findSymbol(const std::string &Name,
   MutexGuard locked(lock);
 
   // First, check to see if we already have this symbol.
-  if (auto Sym = findExistingSymbol(Name))
+  if (auto Sym = findExistingSymbol(Name)) {
+    MY_DEBUG(my_dbgs() << "  " << Name << " found in findExistingSymbol" << "\n");
     return Sym;
+  }
 
   for (object::OwningBinary<object::Archive> &OB : Archives) {
     object::Archive *A = OB.getBinary();
@@ -652,6 +701,7 @@ void MCJIT::NotifyObjectEmitted(const object::ObjectFile& Obj,
   MutexGuard locked(lock);
   MemMgr->notifyObjectLoaded(this, Obj);
   for (unsigned I = 0, S = EventListeners.size(); I < S; ++I) {
+    call_debugger_cost(ev_notifyObjectEmitted);
     EventListeners[I]->NotifyObjectEmitted(Obj, L);
   }
 }

@@ -56,6 +56,9 @@ void init() {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
+    llvm::llvm_register_debuger_printer([](const string &msg) {
+        cout << msg << endl;
+    });
 }
 
 void loadDylib() {
@@ -109,7 +112,10 @@ int main(int argc, char** argv) {
     ee->finalizeObject();
     ee->setObjectCache(nullptr);
 
+    cout << "============================== engine loaded" << endl;
+    cout << "engine get getFunctionAddress start" << endl;
     uint64_t addr = ee->getFunctionAddress("pow4");
+    cout << "engine get getFunctionAddress end" << endl;
 
     typedef int (*pow4_t)(int);
     pow4_t fn = (pow4_t)addr;

@@ -19,6 +19,7 @@
 #include "llvm/Config/config.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Mutex.h"
+#include "llvm/Support/Debug.h"
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -185,17 +186,22 @@ void *DynamicLibrary::SearchForAddressOfSymbol(const char *SymbolName) {
     if (ExplicitSymbols.isConstructed()) {
       StringMap<void *>::iterator i = ExplicitSymbols->find(SymbolName);
 
-      if (i != ExplicitSymbols->end())
+      if (i != ExplicitSymbols->end()) {
+        MY_DEBUG(my_dbgs() << "  " << SymbolName << " found in ExplicitSymbols" << "\n");
         return i->second;
+      }
     }
 
     // Now search the libraries.
     if (OpenedHandles.isConstructed()) {
-      if (void *Ptr = OpenedHandles->Lookup(SymbolName, SearchOrder))
+      if (void *Ptr = OpenedHandles->Lookup(SymbolName, SearchOrder)) {
+        MY_DEBUG(my_dbgs() << "  " << SymbolName << " found in OpenedHandles" << "\n");
         return Ptr;
+      }
     }
   }
 
+  MY_DEBUG(my_dbgs() << "  " << SymbolName << " try SearchForAddressOfSpecialSymbol" << "\n");
   return llvm::SearchForAddressOfSpecialSymbol(SymbolName);
 }
 
